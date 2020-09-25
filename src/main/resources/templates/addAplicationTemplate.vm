@@ -1,0 +1,41 @@
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sch="http://www.uninorte.edu.co/webservices/schemas">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <sch:aplicacion>
+         <sch:id>${body.informacionGeneral.id}</sch:id>
+         <sch:nombre>${body.informacionGeneral.nombre}</sch:nombre>
+         <sch:tipo>${body.informacionGeneral.tipo}</sch:tipo>
+         <sch:descripcion>${body.informacionGeneral.descripcion}</sch:descripcion>
+         <sch:version>${body.informacionGeneral.version}</sch:version>
+         <sch:fabricante>${body.informacionGeneral.fabricante}</sch:fabricante>
+         <sch:reempalzaraA>${body.informacionGeneral.reemplazaraA}</sch:reempalzaraA>
+         <sch:reemplazadaPor>${body.informacionGeneral.reemplazadaPor}</sch:reemplazadaPor>
+         <sch:estado>${body.informacionGeneral.estado}</sch:estado>
+         <sch:activa>${body.informacionGeneral.activa}</sch:activa>
+         <sch:fechaActivacion>${body.informacionGeneral.fechaActivacion}</sch:fechaActivacion>
+         <sch:fechaDesactivacion>${body.informacionGeneral.fechaDesactivacion}</sch:fechaDesactivacion>
+         <sch:proyectosAsociados>
+            #foreach ($nombre in ${body.proyectosAsociados.nombre})
+			<sch:nombre>$nombre</sch:nombre>
+            #end
+         </sch:proyectosAsociados>
+         <sch:areaPropietaria>${body.informacionGeneral.areaPropietaria}</sch:areaPropietaria>
+         <sch:procesoPropietario>${body.informacionGeneral.procesoPropietario}</sch:procesoPropietario>
+         <sch:liderFuncional>
+            <sch:nombre>${body.liderFuncional.nombre}</sch:nombre>
+            <sch:email>${body.liderFuncional.email}</sch:email>
+            <sch:telefono>${body.liderFuncional.telefono}</sch:telefono>
+         </sch:liderFuncional>
+         <sch:liderTecnico>
+            <sch:nombre>${body.liderTecnico.nombre}</sch:nombre>
+            <sch:email>${body.liderTecnico.email}</sch:email>
+            <sch:telefono>${body.liderTecnico.telefono}</sch:telefono>
+         </sch:liderTecnico>
+         <sch:arquitectura>${body.informacionGeneral.arquitectura}</sch:arquitectura>
+         <sch:tipoInfraestructura>${body.informacionGeneral.tipoInfraestructura}</sch:tipoInfraestructura>
+         <sch:proveedorServicioCloud>${body.informacionGeneral.proveedorServicioCloud}</sch:proveedorServicioCloud>
+         <sch:tipoAutenticacion>${body.informacionGeneral.tipoAutenticacion}</sch:tipoAutenticacion>
+         <sch:precio>${body.informacionGeneral.precio}</sch:precio>
+      </sch:aplicacion>
+   </soapenv:Body>
+</soapenv:Envelope>

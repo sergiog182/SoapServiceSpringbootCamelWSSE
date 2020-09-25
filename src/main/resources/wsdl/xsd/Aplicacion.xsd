@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="windows-1252" ?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:uni="http://www.bmind.poc.co/webservices/schemas"
+            targetNamespace="http://www.bmind.poc.co/webservices/schemas" elementFormDefault="qualified">
+  
+  <xsd:element name="aplicaciones">
+    <xsd:complexType>
+      <xsd:sequence>
+        <xsd:element name="aplicacion" type="uni:Aplicacion" maxOccurs="unbounded" minOccurs="0"/>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+  
+  <xsd:element name="aplicacion" type="uni:Aplicacion"/>
+  <xsd:element name="id" type="xsd:string"/>
+  <xsd:element name="correcto" type="uni:Correcto"/>
+  <xsd:element name="error" type="uni:Error"/>
+  
+  <xsd:complexType name="Aplicacion">
+    <xsd:sequence>
+      <xsd:element name="informacionGeneral" type="uni:InformacionGeneral"/>
+      <xsd:element name="liderFuncional" type="uni:Lider"/>
+      <xsd:element name="liderTecnico" type="uni:Lider"/>
+      <xsd:element name="proyectosAsociados">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="nombre" type="xsd:string" maxOccurs="unbounded" minOccurs="0"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+    </xsd:sequence>
+  </xsd:complexType>
+  
+  <xsd:complexType name="Lider">
+    <xsd:sequence>
+      <xsd:element name="nombre" type="xsd:string"/>
+      <xsd:element name="email" type="xsd:string"/>
+      <xsd:element name="telefono" type="xsd:string"/>
+    </xsd:sequence>
+  </xsd:complexType>
+  
+  <xsd:complexType name="InformacionGeneral">
+    <xsd:sequence>
+      <xsd:element name="id" type="xsd:string"/>
+      <xsd:element name="nombre" type="xsd:string"/>
+      <xsd:element name="tipo" type="xsd:string"/>
+      <xsd:element name="descripcion" type="xsd:string"/>
+      <xsd:element name="version" type="xsd:string"/>
+      <xsd:element name="fabricante" type="xsd:string"/>
+      <xsd:element name="reemplazaraA" type="xsd:string"/>
+      <xsd:element name="reemplazadaPor" type="xsd:string"/>
+      <xsd:element name="estado" type="xsd:string"/>
+      <xsd:element name="activa" type="xsd:string"/>
+      <xsd:element name="fechaActivacion" type="xsd:string"/>
+      <xsd:element name="fechaDesactivacion" type="xsd:string"/>
+      <xsd:element name="areaPropietaria" type="xsd:string"/>
+      <xsd:element name="procesoPropietario" type="xsd:string"/>
+      <xsd:element name="arquitectura" type="xsd:string"/>
+      <xsd:element name="tipoInfraestructura" type="xsd:string"/>
+      <xsd:element name="proveedorServicioCloud" type="xsd:string"/>
+      <xsd:element name="tipoAutenticacion" type="xsd:string"/>
+      <xsd:element name="precio" type="xsd:string"/>
+      <xsd:element name="precioUSD" type="xsd:string"/>
+      <xsd:element name="precioEUR" type="xsd:string"/>
+    </xsd:sequence>
+  </xsd:complexType>
+  
+  <xsd:complexType name="Error">
+    <xsd:sequence>
+      <xsd:element name="codigo" type="xsd:string"/>
+      <xsd:element name="mensaje" type="xsd:string"/>
+    </xsd:sequence>
+  </xsd:complexType>
+  
+  <xsd:complexType name="Correcto">
+    <xsd:sequence>
+      <xsd:element name="codigo" type="xsd:string"/>
+      <xsd:element name="mensaje" type="xsd:string"/>
+    </xsd:sequence>
+  </xsd:complexType>
+
+</xsd:schema>

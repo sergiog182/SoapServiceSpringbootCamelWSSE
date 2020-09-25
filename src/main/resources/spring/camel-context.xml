@@ -1,0 +1,491 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:cxf="http://camel.apache.org/schema/cxf"
+    xmlns:cxfs="http://cxf.apache.org/configuration/security"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:http-conf="http://cxf.apache.org/transports/http/configuration"
+	xmlns:camel="http://camel.apache.org/schema/spring"
+    xmlns:http="http://cxf.apache.org/transports/http/configuration"
+    xmlns:p="http://cxf.apache.org/policy"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans                 
+    					https://www.springframework.org/schema/beans/spring-beans.xsd                 
+    					http://camel.apache.org/schema/spring                 
+    					https://camel.apache.org/schema/spring/camel-spring.xsd                 
+    					http://camel.apache.org/schema/cxf                  
+    					http://camel.apache.org/schema/cxf/camel-cxf.xsd
+    					http://cxf.apache.org/transports/http/configuration 
+    					http://cxf.apache.org/schemas/configuration/http-conf.xsd
+    					http://cxf.apache.org/policy 
+    					http://cxf.apache.org/schemas/policy.xsd">
+    
+    <!-- processors --> 
+    <bean class="co.poc.bmind.processors.SetCorrectoResponseProcessor" id="setCorrectoResponseProcessor"/>
+    <bean class="co.poc.bmind.processors.SetErrorResponseProcess" id="setErrorResponseProcess"/>
+    <bean class="co.poc.bmind.processors.TransformDataProcess" id="transformDataProcess" />
+    <bean class="co.poc.bmind.processors.CompleteResponseWithConversionsProcessor" id="completeResponseWithConversionsProcessor" />
+    <bean class="co.poc.bmind.processors.SetEmpyAplicationsProcess" id="setEmpyAplicationsProcess" />
+	<bean class="co.poc.bmind.processors.HandleFaultProcessor" id="handleFaultProcessor" />
+	
+	<bean class="org.apache.http.conn.ssl.AllowAllHostnameVerifier" id="allowAllHostnameVerifier" />
+	
+	<camel:sslContextParameters id="sslContextParameters">
+	  <camel:keyManagers
+		  keyPassword="passwordadmin">
+		<camel:keyStore
+			resource="/tmp/keystores/client.ts"
+			password="passwordadmin"/>
+	  </camel:keyManagers>
+	</camel:sslContextParameters>
+
+    <!-- processors -->
+    
+    <!-- Aggregators -->
+    <bean class="co.poc.bmind.aggregators.ApplicationAggregator" id="applicationAggregator" />
+    <!-- Aggregators -->
+    
+    <!-- interceptors -->
+    <bean id="wss4jInInterceptor" class="org.apache.cxf.ws.security.wss4j.WSS4JInInterceptor">
+    	<constructor-arg>
+	        <map>
+	            <entry key="action" value="UsernameToken Timestamp" />
+	            <entry key="user" value="user" />
+<!--                 <entry key="passwordType" value="PasswordDigest" /> -->
+                <entry key="passwordType" value="PasswordText" />
+				<entry key="passwordCallbackRef" >
+					<ref bean="UTPasswordCallback"/>
+				</entry>
+                <entry key="isBSPCompliant" value="false"/>
+	        </map>
+        </constructor-arg>
+    </bean>
+    <!-- interceptors -->
+    
+    <!-- beans -->
+    <bean class="co.poc.bmind.wsswcurity.UTPasswordCallback" id="UTPasswordCallback" />
+    <!-- beans -->
+    
+    <cxf:cxfEndpoint address="/SOAPTransformation" id="SOAPEndpoint" serviceClass="co.poc.bmind.webservices.soap.AplicacionPortImpl">
+        <cxf:properties>
+            <entry key="dataFormat" value="PAYLOAD"/>
+            <entry key="setDefaultBus" value="true"/>
+        </cxf:properties>
+        <cxf:inInterceptors>
+        	<ref bean="wss4jInInterceptor" />
+        </cxf:inInterceptors>
+    </cxf:cxfEndpoint>
+    
+    <camelContext id="SOAP_Service" xmlns="http://camel.apache.org/schema/spring">
+        
+        <propertyPlaceholder id="properties" location="application.properties"/>
+        
+        <dataFormats>
+            <jaxb contextPath="co.poc.bmind.webservices.schemas" id="bmindDataFormat" prettyPrint="true"/>
+            <jaxb contextPath="co.edu.uninorte.webservices.schemas" id="uninorteDataFormat" prettyPrint="true"/>
+        </dataFormats>
+        
+        <route id="soapEndpointRoute">
+            <from id="soapEndpoint" uri="cxf:bean:SOAPEndpoint"/>
+            <setHeader headerName="escribeLog">
+        		<simple>{{escribe.log}}</simple>
+        	</setHeader>
+            <choice id="choiceSoapAction">
+                <when id="whenAddApplication">
+                    <simple>${header.SOAPAction} == 'addAplicacion'</simple>
+                    <to id="toAddAppliction" uri="direct:addApplicationRoute"/>
+                </when>
+                <when id="whenDeleteAppliction">
+                    <simple>${header.SOAPAction} == 'deleteAplicacion'</simple>
+                    <to id="toDeleteAppliction" uri="direct:deleteApplictionRoute"/>
+                </when>
+                <when id="whenGetApplications">
+                    <simple>${header.SOAPAction} == 'getAplicaciones'</simple>
+                    <to id="toGetApplictions" uri="direct:getApplicationsRoute"/>
+                </when>
+                <when id="whenUpdateApplication">
+                    <simple>${header.SOAPAction} == 'updateAplicacion'</simple>
+                    <to id="toUpdateAppliction" uri="direct:updateApplicationRoute"/>
+                </when>
+                <otherwise id="otherwiseSoapAction">
+                    <log id="log-otherwise" message="${exchangeId} - SOAP SERVICE ::: Funcion no reconocida ${header.SOAPAction}"/>
+                    <setHeader headerName="errorMessage">
+                        <simple>Funcion no reconocida ${header.SOAPAction}</simple>
+                    </setHeader>
+                    <setHeader headerName="errorCode">
+                        <constant>400</constant>
+                    </setHeader>
+                    <process ref="setErrorResponseProcess"/>
+                    <marshal ref="bmindDataFormat"/>
+                </otherwise>
+            </choice>
+        </route>
+        
+        <route id="addApplicationRoute">
+            <from id="fromAddAppliction" uri="direct:addApplicationRoute"/>
+            <doTry>
+            	<convertBodyTo type="java.lang.String"/>
+            	<filter>
+	        		<simple>${header.escribeLog} == '1'</simple>
+	        		<log message="${exchangeId} - SOAP SERVICE ::: Peticion recibida addApplication \n${body}" />
+	        	</filter>
+	            <unmarshal ref="bmindDataFormat"/>
+				<process ref="transformDataProcess" />
+				<to uri="velocity:templates/addAplicationTemplate.vm" />
+				
+				<filter>
+	        		<simple>${header.escribeLog} == '1'</simple>
+	        		<log message="${exchangeId} - SOAP SERVICE ::: peticion enviada a backend, servicio addAplicacion \n${body}" />
+	        	</filter>
+	        	
+				<setHeader headerName="SOAPAction">
+			        <constant>addAplicacion</constant>
+			    </setHeader>
+			    <to uri="direct:callService"/>
+			    
+			    <filter>
+	        		<simple>${header.escribeLog} == '1'</simple>
+	        		<log message="${exchangeId} - SOAP SERVICE ::: respuesta backend, servicio addAplicacion \n${body}" />
+	        	</filter>
+			    
+			    <to uri="direct:prepareConversionRate" />
+			    
+				<to uri="direct:handleApplicationResponse" />
+            	<doCatch>
+			    	<exception>java.lang.Exception</exception>
+		            <handled>
+		            	<constant>true</constant>
+		            </handled>
+		            <log loggingLevel="ERROR" message="${exchangeId} - SOAP SERVICE ::: Error al consumir servicio de backend addAplicacion! \n${exception.message}" />
+		            <setHeader headerName="errorMessage">
+                        <simple>Error al consumir servicio addAplicacion! :: ${exception.message}</simple>
+                    </setHeader>
+                    <setHeader headerName="errorCode">
+                        <constant>-1</constant>
+                    </setHeader>
+                    <process ref="setErrorResponseProcess"/>
+			    </doCatch>
+            </doTry>
+            <marshal ref="bmindDataFormat"/>
+            <convertBodyTo type="java.lang.String"/>
+           	<filter>
+        		<simple>${header.escribeLog} == '1'</simple>
+        		<log message="${exchangeId} - SOAP SERVICE ::: Respuesta final addApplication \n${body}" />
+        	</filter>
+        </route>
+        
+        <route id="deleteApplictionRoute">
+            <from id="fromDeleteAppliction" uri="direct:deleteApplictionRoute"/>
+            <doTry>
+            	<convertBodyTo type="java.lang.String"/>
+            	<filter>
+	        		<simple>${header.escribeLog} == '1'</simple>
+	        		<log message="${exchangeId} - SOAP SERVICE ::: peticion recibida deleteApplication \n${body}" />
+	        	</filter>
+            	<setHeader headerName="applicationId">
+            		<xpath resultType="java.lang.String">(//*[local-name()='id'])/text()</xpath>
+            	</setHeader>
+            	<to uri="velocity:templates/deleteAplicationTemplate.vm" />
+				
+				<filter>
+	        		<simple>${header.escribeLog} == '1'</simple>
+	        		<log message="${exchangeId} - SOAP SERVICE ::: peticion enviada a backend, servicio deleteAplicacion \n${body}" />
+	        	</filter>
+	        	
+				<setHeader headerName="SOAPAction">
+			        <constant>deleteAplicacione</constant>
+			    </setHeader>
+			    <to uri="direct:callService"/>
+			    
+			    <filter>
+	        		<simple>${header.escribeLog} == '1'</simple>
+	        		<log message="${exchangeId} - SOAP SERVICE ::: respuesta de backend, servicio deleteAplicacion \n${body}" />
+	        	</filter>
+        	
+	        	<choice>
+					<when>
+						<xpath>boolean(//*[local-name()='correcto'])</xpath>
+						<setHeader headerName="codigo">
+							<xpath>(//*[local-name()='codigo'])/text()</xpath>
+						</setHeader>
+						<setHeader headerName="mensaje">
+							<xpath>(//*[local-name()='mensaje'])/text()</xpath>
+						</setHeader>
+						<process ref="setCorrectoResponseProcessor"/>
+					</when>
+					<otherwise>
+						<setHeader headerName="errorMessage">
+	                        <xpath>(//*[local-name()='mensaje'])/text()</xpath>
+	                    </setHeader>
+	                    <setHeader headerName="errorCode">
+	                        <xpath>(//*[local-name()='codigo'])/text()</xpath>
+	                    </setHeader>
+						<process ref="setErrorResponseProcess"/>
+					</otherwise>
+				</choice>
+            	<doCatch>
+			    	<exception>java.lang.Exception</exception>
+		            <handled>
+		            	<constant>true</constant>
+		            </handled>
+		            <log loggingLevel="ERROR" message="${exchangeId} - SOAP SERVICE ::: error al consumir servicio backend deleteAplicacion! \n${exception.message}" />
+		            <process ref="handleFaultProcessor" />
+		            <setHeader headerName="errorMessage">
+                        <xpath>(//*[local-name()='mensaje'])/text()</xpath>
+                    </setHeader>
+                    <setHeader headerName="errorCode">
+                        <xpath>(//*[local-name()='codigo'])/text()</xpath>
+                    </setHeader>
+                    <process ref="setErrorResponseProcess"/>
+			    </doCatch>
+            </doTry>
+            <marshal ref="bmindDataFormat"/>
+            <convertBodyTo type="java.lang.String" />
+            <filter>
+        		<simple>${header.escribeLog} == '1'</simple>
+        		<log message="${exchangeId} - SOAP SERVICE ::: respuesta final deleteApplication \n${body}" />
+        	</filter>
+        </route>
+        
+        <route id="getApplicationsRoute">
+            <from id="fromGetApplictions" uri="direct:getApplicationsRoute"/>
+            <doTry>
+            	<convertBodyTo type="java.lang.String"/>
+            	<filter>
+	        		<simple>${header.escribeLog} == '1'</simple>
+	        		<log message="${exchangeId} - SOAP SERVICE ::: peticion recibida getApplications \n${body}" />
+	        	</filter>
+            	<setHeader headerName="applicationId">
+            		<xpath resultType="java.lang.String">(//*[local-name()='id'])/text()</xpath>
+            	</setHeader>
+				<to uri="velocity:templates/getAplicationesTemplate.vm" />
+				
+				<filter>
+	        		<simple>${header.escribeLog} == '1'</simple>
+	        		<log message="${exchangeId} - SOAP SERVICE ::: peticion enviada a backend, servicio getAplicaciones \n${body}" />
+	        	</filter>
+				
+			    <setHeader headerName="SOAPAction">
+			        <constant>getAplicaciones</constant>
+			    </setHeader>
+			    <to uri="direct:callService"/>
+			    
+			    <filter>
+	        		<simple>${header.escribeLog} == '1'</simple>
+	        		<log message="${exchangeId} - SOAP SERVICE ::: respuesta backend, servicio getAplicaciones \n${body}" />
+	        	</filter>
+        	
+	        	<choice>
+					<when>
+						<xpath>boolean(//*[local-name()='aplicaciones'])</xpath>
+						
+						<to uri="direct:prepareConversionRate" />
+						
+						<split strategyRef="applicationAggregator" parallelProcessing="true">
+							<tokenize xml="true" token="aplicacion" inheritNamespaceTagName="aplicaciones" />
+							<to uri="direct:handleApplicationResponse" />
+						</split>
+						<filter>
+							<simple>${header.tieneAplicaciones} == null</simple>
+							<process ref="setEmpyAplicationsProcess" />
+						</filter>
+					</when>
+					<otherwise>
+						<setHeader headerName="errorMessage">
+	                        <xpath>(//*[local-name()='mensaje'])/text()</xpath>
+	                    </setHeader>
+	                    <setHeader headerName="errorCode">
+	                        <xpath>(//*[local-name()='codigo'])/text()</xpath>
+	                    </setHeader>
+						<process ref="setErrorResponseProcess"/>
+					</otherwise>
+				</choice>
+            	<doCatch>
+			    	<exception>java.lang.Exception</exception>
+		            <handled>
+		            	<constant>true</constant>
+		            </handled>
+		            <log loggingLevel="ERROR" message="${exchangeId} - SOAP SERVICE ::: Error al consumir servicio backend getAplicaciones! \n${exception.message}" />
+		            <setHeader headerName="errorMessage">
+                        <simple>Error al consumir servicio getAplicaciones! :: ${exception.message}</simple>
+                    </setHeader>
+                    <setHeader headerName="errorCode">
+                        <constant>-1</constant>
+                    </setHeader>
+                    <process ref="setErrorResponseProcess"/>
+			    </doCatch>
+            </doTry>
+            <marshal ref="bmindDataFormat"/>
+            <convertBodyTo type="java.lang.String"/>
+           	<filter>
+        		<simple>${header.escribeLog} == '1'</simple>
+        		<log message="${exchangeId} - SOAP SERVICE ::: respuesta final getApplicaciones \n${body}" />
+        	</filter>
+        </route>
+        
+        <route id="updateApplicationRoute">
+            <from id="fromUpdateAppliction" uri="direct:updateApplicationRoute"/>
+            <doTry>
+            	<convertBodyTo type="java.lang.String"/>
+            	<filter>
+	        		<simple>${header.escribeLog} == '1'</simple>
+	        		<log message="${exchangeId} - SOAP SERVICE ::: peticion recibida updateApplicacion \n${body}" />
+	        	</filter>
+	        	
+	            <unmarshal ref="bmindDataFormat"/>
+				<process ref="transformDataProcess" />
+				<to uri="velocity:templates/addAplicationTemplate.vm" />
+				
+				<filter>
+	        		<simple>${header.escribeLog} == '1'</simple>
+	        		<log message="${exchangeId} - SOAP SERVICE ::: peticion enviada a backend, servicio updateAplicacion \n${body}" />
+	        	</filter>
+				
+				<setHeader headerName="SOAPAction">
+			        <constant>updateAplicacion</constant>
+			    </setHeader>
+			    <to uri="direct:callService"/>			
+			    
+			    <filter>
+	        		<simple>${header.escribeLog} == '1'</simple>
+	        		<log message="${exchangeId} - SOAP SERVICE ::: respuesta backend, servicio updateAplicacion \n${body}" />
+	        	</filter>
+			    
+			    <to uri="direct:prepareConversionRate" />
+			    
+			    <to uri="direct:handleApplicationResponse" />
+			    <doCatch>
+			    	<exception>java.lang.Exception</exception>
+		            <handled>
+		            	<constant>true</constant>
+		            </handled>
+		            <log loggingLevel="ERROR" message="${exchangeId} - SOAP SERVICE ::: Error al consumir servicio backend updateAplicacion! \n${exception.message}" />
+		            <setHeader headerName="errorMessage">
+                        <simple>Error al consumir servicio updateAplicacion! :: ${exception.message}</simple>
+                    </setHeader>
+                    <setHeader headerName="errorCode">
+                        <constant>-1</constant>
+                    </setHeader>
+                    <process ref="setErrorResponseProcess"/>
+			    </doCatch>
+            </doTry>
+            <marshal ref="bmindDataFormat"/>
+            <convertBodyTo type="java.lang.String"/>
+           	<filter>
+        		<simple>${header.escribeLog} == '1'</simple>
+        		<log message="${exchangeId} - SOAP SERVICE ::: respuesta final updateApplication \n${body}" />
+        	</filter>
+        </route>
+        
+        <route id="handleApplicationResponseRoute">
+        	<from uri="direct:handleApplicationResponse" />
+        	<choice>
+				<when>
+					<xpath>boolean(//*[local-name()='aplicacion'])</xpath>
+					<setBody>
+						<xpath>//*[local-name()='aplicacion']</xpath>
+					</setBody>
+					<unmarshal ref="uninorteDataFormat" />
+					
+					<process ref="completeResponseWithConversionsProcessor" />
+				</when>
+				<otherwise>
+					<setHeader headerName="errorMessage">
+                        <xpath>(//*[local-name()='mensaje'])/text()</xpath>
+                    </setHeader>
+                    <setHeader headerName="errorCode">
+                        <xpath>(//*[local-name()='codigo'])/text()</xpath>
+                    </setHeader>
+					<process ref="setErrorResponseProcess"/>
+				</otherwise>
+			</choice>
+        </route>
+        
+        <route id="prepareConversionRateRoute">
+        	<from uri="direct:prepareConversionRate"/>
+        	<setProperty propertyName="originalBodyBeforeConvertion">
+        		<simple>${body}</simple>
+        	</setProperty>
+			
+			<setHeader headerName="rateDate">
+				<simple>${date:now:yyyy-MM-dd}</simple>
+			</setHeader>
+			<setHeader headerName="currencyFrom">
+				<constant>COP</constant>
+			</setHeader>
+			
+			<!-- Consultar tasa de cambio a USD -->
+			<setHeader headerName="currencyTo">
+				<constant>USD</constant>
+			</setHeader>
+			<to uri="direct:getConvertionRate" />
+			<setHeader headerName="conversionRateUSD">
+				<simple>${header.conversionRate}</simple>
+			</setHeader>
+			
+			<!-- Consultar tasa de cambio a EUR -->
+			<setHeader headerName="currencyTo">
+				<constant>EUR</constant>
+			</setHeader>
+			<to uri="direct:getConvertionRate" />
+			<setHeader headerName="conversionRateEUR">
+				<simple>${header.conversionRate}</simple>
+			</setHeader>
+			
+			<setBody>
+				<simple>${property[originalBodyBeforeConvertion]}</simple>
+			</setBody>
+        </route>
+        
+        <route id="getConvertionRateRoute">
+        	<from uri="direct:getConvertionRate" />
+        	<doTry>
+        		<setHeader headerName="CamelHttpMethod">
+			        <constant>POST</constant>
+			    </setHeader>
+			    <setHeader headerName="SOAPAction">
+			        <constant>http://tempuri.org/GetConversionRate</constant>
+			    </setHeader>
+			    <to uri="velocity:templates/getConvertionRate.vm" />
+			    
+			    <filter>
+	        		<simple>${header.escribeLog} == '1'</simple>
+	        		<log message="${exchangeId} - SOAP SERVICE ::: peticion converter, servicio GetConversionRate \n${body}" />
+	        	</filter>
+			    
+			    <to uri="http4://currencyconverter.kowabunga.net/converter.asmx?bridgeEndpoint=true"/>
+			    <convertBodyTo type="java.lang.String" />
+			    
+			    <filter>
+	        		<simple>${header.escribeLog} == '1'</simple>
+	        		<log message="${exchangeId} - SOAP SERVICE ::: respuesta converter, servicio GetConversionRate \n${body}" />
+	        	</filter>
+	        	
+			    <setHeader headerName="conversionRate">
+			    	<xpath resultType="java.lang.String">(//*[local-name()='GetConversionRateResult'])/text()</xpath>
+			    </setHeader>
+        		<doCatch>
+			    	<exception>java.lang.Exception</exception>
+		            <handled>
+		            	<constant>true</constant>
+		            </handled>
+		            <log loggingLevel="ERROR" message="${exchangeId} - SOAP SERVICE ::: Error al consumir servicio GetConversionRate! \n${exception.message}" />
+		            <setHeader headerName="conversionRate">
+                        <constant>0</constant>
+                    </setHeader>
+			    </doCatch>
+        	</doTry>	
+        </route>
+        
+        <route id="callServideRoute">
+        	<from uri="direct:callService" />
+        	<setHeader headerName="CamelHttpMethod">
+		        <constant>POST</constant>
+		    </setHeader>
+		    <setHeader headerName="urlServicio">
+		    	<simple>{{url.uninorte.soap}}</simple>
+		    </setHeader>
+		    <toD uri="${header.urlServicio}?bridgeEndpoint=true&amp;useGlobalSslContextParameters=false&amp;sslContextParameters=#sslContextParameters&amp;x509HostnameVerifier=allowAllHostnameVerifier"/>
+		    <convertBodyTo type="java.lang.String" />
+        </route>
+    
+    </camelContext>
+</beans>
